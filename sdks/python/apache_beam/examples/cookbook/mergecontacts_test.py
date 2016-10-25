@@ -129,8 +129,8 @@ class MergeContactsTest(unittest.TestCase):
                         | 'result_tsv' >> beam.Map(
                           lambda (name, (email, phone, snailmail)): '\t'
                           .join(['"%s"' % name,
-                                 '"%s"' % ','.join(email),
-                                 '"%s"' % ','.join(phone),
+                                 '"%s"' % ','.join(sorted(email.strip('"').split(','))),
+                                 '"%s"' % ','.join(sorted(phone.strip('"').split(','))),
                                  '"%s"' % next(iter(snailmail), '')])))
     
     luddites = (grouped | 'filter_luddites' >> beam.Filter(
@@ -144,8 +144,8 @@ class MergeContactsTest(unittest.TestCase):
     num_writers = writers | 'writers' >> beam.combiners.Count.Globally()
     num_nomads = nomads | 'nomads' >> beam.combiners.Count.Globally()
 
-    beam.assert_that(self.normalize_tsv_results('\n'.join(result_tsv_lines)),
-                     beam.equal_to(self.EXPECTED_TSV),
+    beam.assert_that(result_tsv_lines,#(self.normalize_tsv_results('\n'.join(result_tsv_lines)),
+                     beam.equal_to([self.EXPECTED_TSV]),
                      label='assert:tag_tsv_results')
     beam.assert_that(num_luddites, beam.equal_to([self.EXPECTED_LUDDITES]),
                      label='assert:tag_num_luddites')
