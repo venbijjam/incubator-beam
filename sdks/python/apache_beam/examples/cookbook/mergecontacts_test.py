@@ -22,7 +22,6 @@ import re
 import unittest
 
 import apache_beam as beam
-from apache_beam.examples.cookbook import mergecontacts
 
 
 class MergeContactsTest(unittest.TestCase):
@@ -104,7 +103,7 @@ class MergeContactsTest(unittest.TestCase):
 
     contacts_email = p | 'create_email' >>  beam.Create([self.CONTACTS_EMAIL])
     contacts_phone = p | 'create_phone' >> beam.Create([self.CONTACTS_PHONE])
-    contacts_snailmail = (p | 'create_snail_mail' >> 
+    contacts_snailmail = (p | 'create_snail_mail' >>
                           beam.Create([self.CONTACTS_SNAILMAIL]))
 
     email = (contacts_email
