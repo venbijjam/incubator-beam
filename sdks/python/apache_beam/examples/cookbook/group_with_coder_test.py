@@ -49,7 +49,7 @@ class GroupWithCoderTest(unittest.TestCase):
 
     results = (p
                | 'create_sample' >>  beam.Create([self.SAMPLE_RECORDS])
-               | beam.Map(GroupWithCoderTest.get_players)
+               | beam.Map(group_with_coder.get_players)
                | beam.CombinePerKey(sum)
                | beam.Map(lambda (k, v): '%s,%d' % (k.name, v)))
 
@@ -69,7 +69,7 @@ class GroupWithCoderTest(unittest.TestCase):
 
     results_1 = (p
                  | 'create_sample_1' >>  beam.Create([self.SAMPLE_RECORDS])
-                 | beam.Map(GroupWithCoderTest.get_players)
+                 | beam.Map(group_with_coder.get_players)
                  | beam.CombinePerKey(sum)
                  | beam.Map(lambda (k, v): '%s,%d' % (k.name, v)))
 
