@@ -104,8 +104,8 @@ class MergeContactsTest(unittest.TestCase):
 
     contacts_email = p | 'create_email' >>  beam.Create([self.CONTACTS_EMAIL])
     contacts_phone = p | 'create_phone' >> beam.Create([self.CONTACTS_PHONE])
-    contacts_snailmail = (p
-                          | 'create_snail_mail' >> beam.Create([self.CONTACTS_SNAILMAIL]))
+    contacts_snailmail = (p | 'create_snail_mail' >> 
+                          beam.Create([self.CONTACTS_SNAILMAIL]))
 
     email = (contacts_email
              | beam.Map('backslash_email', lambda x: re.sub(r'\\', r'\\\\', x))
@@ -126,24 +126,22 @@ class MergeContactsTest(unittest.TestCase):
     grouped = (email, phone, snailmail) | 'group_by_name' >> beam.CoGroupByKey()
 
     result_tsv_lines = (grouped | 'result_tsv' >> beam.Map(
-                                    lambda (name, (email, phone, snailmail)): '\t'
-                                    .join(['"%s"' % name,
-                                           '"%s"' % ','.join(sorted(email
-                                                                    .strip('"')
-                                                                    .split(','))),
-                                           '"%s"' % ','.join(sorted(phone
-                                                                    .strip('"')
-                                                                    .split(','))),
-                                           '"%s"' % next(iter(snailmail), '')])))
+        lambda (name, (email, phone, snailmail)): '\t'
+        .join(['"%s"' % name,
+               '"%s"' % ','.join(sorted(email.strip('"').split(','))),
+               '"%s"' % ','.join(sorted(phone.strip('"').split(','))),
+               '"%s"' % next(iter(snailmail), '')])))
 
     luddites = (grouped | 'filter_luddites' >> beam.Filter(
-        lambda (name, (email, phone, snailmail)): not next(iter(email), None)))
+        lambda (name, (email, phone, snailmail)
+               ): not next(iter(email), None)))
     writers = (grouped | 'filter_writers' >> beam.Filter(
-        lambda (name, (email, phone, snailmail)): not next(iter(phone), None)))
+        lambda (name, (email, phone, snailmail)
+               ): not next(iter(phone), None)))
     nomads = (grouped | 'filter_nomads' >> beam.Filter(
-        lambda (name, (email, phone, snailmail)):
-        not next(iter(snailmail), None)))
-    
+        lambda (name, (email, phone, snailmail)
+               ): not next(iter(snailmail), None)))
+
     num_luddites = luddites | 'luddites' >> beam.combiners.Count.Globally()
     num_writers = writers | 'writers' >> beam.combiners.Count.Globally()
     num_nomads = nomads | 'nomads' >> beam.combiners.Count.Globally()
