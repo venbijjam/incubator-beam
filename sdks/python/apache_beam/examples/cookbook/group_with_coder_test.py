@@ -42,9 +42,10 @@ class GroupWithCoderTest(unittest.TestCase):
     # the typehints associated with all transforms will have non-default values
     # and therefore any custom coders will be used. In our case we want to make
     # sure the coder for the Player class will be used.
-    
-    coders.registry.register_coder(group_with_coder.Player, group_with_coder.PlayerCoder)
-    
+
+    coders.registry.register_coder(group_with_coder.Player,
+                                   group_with_coder.PlayerCoder)
+
     p = beam.Pipeline('DirectPipelineRunner')
 
     results = (p
