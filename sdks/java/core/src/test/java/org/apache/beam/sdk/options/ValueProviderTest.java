@@ -17,14 +17,13 @@
  */
 package org.apache.beam.sdk.options;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import org.apache.beam.sdk.options.ValueProvider.RuntimeValueProvider;
 import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
@@ -40,7 +39,7 @@ public class ValueProviderTest {
   @Rule public ExpectedException expectedException = ExpectedException.none();
 
   /** A test interface. */
-  public static interface TestOptions extends PipelineOptions {
+  public interface TestOptions extends PipelineOptions {
     @Default.String("bar")
     ValueProvider<String> getBar();
     void setBar(ValueProvider<String> bar);
@@ -98,6 +97,13 @@ public class ValueProviderTest {
   }
 
   @Test
+  public void testRuntimePropertyName() {
+    TestOptions options = PipelineOptionsFactory.as(TestOptions.class);
+    ValueProvider<String> provider = options.getFoo();
+    assertEquals("foo", ((RuntimeValueProvider) provider).propertyName());
+  }
+
+  @Test
   public void testDefaultRuntimeProvider() {
     TestOptions options = PipelineOptionsFactory.as(TestOptions.class);
     ValueProvider<String> provider = options.getBar();
@@ -137,7 +143,7 @@ public class ValueProviderTest {
   }
 
   /** A test interface. */
-  public static interface BadOptionsRuntime extends PipelineOptions {
+  public interface BadOptionsRuntime extends PipelineOptions {
     RuntimeValueProvider<String> getBar();
     void setBar(RuntimeValueProvider<String> bar);
   }
@@ -153,7 +159,7 @@ public class ValueProviderTest {
   }
 
   /** A test interface. */
-  public static interface BadOptionsStatic extends PipelineOptions {
+  public interface BadOptionsStatic extends PipelineOptions {
     StaticValueProvider<String> getBar();
     void setBar(StaticValueProvider<String> bar);
   }
@@ -175,12 +181,8 @@ public class ValueProviderTest {
     ObjectMapper mapper = new ObjectMapper();
     String serializedOptions = mapper.writeValueAsString(submitOptions);
 
-    // This is the expected behavior of the runner: deserialize and set the
-    // the runtime options.
-    String anchor = "\"appName\":\"ValueProviderTest\"";
-    assertThat(serializedOptions, containsString("\"foo\":null"));
-    String runnerString = serializedOptions.replaceAll(
-      "\"foo\":null", "\"foo\":\"quux\"");
+    String runnerString = ValueProviderUtils.updateSerializedOptions(
+      serializedOptions, ImmutableMap.of("foo", "quux"));
     TestOptions runtime = mapper.readValue(runnerString, PipelineOptions.class)
       .as(TestOptions.class);
 
@@ -199,10 +201,8 @@ public class ValueProviderTest {
     ObjectMapper mapper = new ObjectMapper();
     String serializedOptions = mapper.writeValueAsString(submitOptions);
 
-    // This is the expected behavior of the runner: deserialize and set the
-    // the runtime options.
-    assertThat(serializedOptions, containsString("baz"));
-    String runnerString = serializedOptions.replaceAll("baz", "quux");
+    String runnerString = ValueProviderUtils.updateSerializedOptions(
+      serializedOptions, ImmutableMap.of("foo", "quux"));
     TestOptions runtime = mapper.readValue(runnerString, PipelineOptions.class)
       .as(TestOptions.class);
 

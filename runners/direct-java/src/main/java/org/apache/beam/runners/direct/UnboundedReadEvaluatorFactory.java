@@ -19,9 +19,11 @@ package org.apache.beam.runners.direct;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.direct.DirectRunner.CommittedBundle;
@@ -33,20 +35,23 @@ import org.apache.beam.sdk.io.UnboundedSource;
 import org.apache.beam.sdk.io.UnboundedSource.CheckpointMark;
 import org.apache.beam.sdk.io.UnboundedSource.UnboundedReader;
 import org.apache.beam.sdk.transforms.AppliedPTransform;
-import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
 import org.joda.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link TransformEvaluatorFactory} that produces {@link TransformEvaluator TransformEvaluators}
  * for the {@link Unbounded Read.Unbounded} primitive {@link PTransform}.
  */
 class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(UnboundedReadEvaluatorFactory.class);
   // Occasionally close an existing reader and resume from checkpoint, to exercise close-and-resume
-  @VisibleForTesting static final double DEFAULT_READER_REUSE_CHANCE = 0.95;
+  private static final double DEFAULT_READER_REUSE_CHANCE = 0.95;
 
   private final EvaluationContext evaluationContext;
   private final double readerReuseChance;
@@ -70,7 +75,7 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
   }
 
   private <OutputT> TransformEvaluator<?> createEvaluator(
-      AppliedPTransform<?, PCollection<OutputT>, Read.Unbounded<OutputT>> application) {
+      AppliedPTransform<PBegin, PCollection<OutputT>, Read.Unbounded<OutputT>> application) {
     return new UnboundedReadEvaluator<>(
         application, evaluationContext, readerReuseChance);
   }
@@ -134,6 +139,16 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
               .addUnprocessedElements(
                   Collections.singleton(
                       WindowedValue.timestampedValueInGlobalWindow(residual, watermark)));
+        } else if (reader.getWatermark().isBefore(BoundedWindow.TIMESTAMP_MAX_VALUE)) {
+          // If the reader had no elements available, but the shard is not done, reuse it later
+          resultBuilder.addUnprocessedElements(
+              Collections.<WindowedValue<?>>singleton(
+                  element.withValue(
+                      UnboundedSourceShard.of(
+                          shard.getSource(),
+                          shard.getDeduplicator(),
+                          reader,
+                          shard.getCheckpoint()))));
         }
       } catch (IOException e) {
         if (reader != null) {
@@ -253,24 +268,33 @@ class UnboundedReadEvaluatorFactory implements TransformEvaluatorFactory {
     }
 
     @Override
-    public Collection<CommittedBundle<?>> getInitialInputs(AppliedPTransform<?, ?, ?> transform) {
-      return createInitialSplits((AppliedPTransform) transform);
+    public Collection<CommittedBundle<?>> getInitialInputs(
+        AppliedPTransform<?, ?, ?> transform, int targetParallelism) throws Exception {
+      return createInitialSplits((AppliedPTransform) transform, targetParallelism);
     }
 
     private <OutputT> Collection<CommittedBundle<?>> createInitialSplits(
-        AppliedPTransform<?, ?, Read.Unbounded<OutputT>> transform) {
+        AppliedPTransform<PBegin, ?, Unbounded<OutputT>> transform, int targetParallelism)
+        throws Exception {
       UnboundedSource<OutputT, ?> source = transform.getTransform().getSource();
+      List<? extends UnboundedSource<OutputT, ?>> splits =
+          source.generateInitialSplits(targetParallelism, evaluationContext.getPipelineOptions());
       UnboundedReadDeduplicator deduplicator =
           source.requiresDeduping()
               ? UnboundedReadDeduplicator.CachedIdDeduplicator.create()
               : NeverDeduplicator.create();
 
-      UnboundedSourceShard<OutputT, ?> shard = UnboundedSourceShard.unstarted(source, deduplicator);
-      return Collections.<CommittedBundle<?>>singleton(
-          evaluationContext
-              .<UnboundedSourceShard<?, ?>>createRootBundle()
-              .add(WindowedValue.<UnboundedSourceShard<?, ?>>valueInGlobalWindow(shard))
-              .commit(BoundedWindow.TIMESTAMP_MAX_VALUE));
+      ImmutableList.Builder<CommittedBundle<?>> initialShards = ImmutableList.builder();
+      for (UnboundedSource<OutputT, ?> split : splits) {
+        UnboundedSourceShard<OutputT, ?> shard =
+            UnboundedSourceShard.unstarted(split, deduplicator);
+        initialShards.add(
+            evaluationContext
+                .<UnboundedSourceShard<?, ?>>createRootBundle()
+                .add(WindowedValue.<UnboundedSourceShard<?, ?>>valueInGlobalWindow(shard))
+                .commit(BoundedWindow.TIMESTAMP_MAX_VALUE));
+      }
+      return initialShards.build();
     }
   }
 }

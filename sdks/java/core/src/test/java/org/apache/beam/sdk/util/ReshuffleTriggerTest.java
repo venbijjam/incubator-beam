@@ -15,28 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.beam.sdk.util;
 
-package org.apache.beam.runners.spark.translation;
+import static org.junit.Assert.assertEquals;
 
-import org.apache.beam.runners.spark.SparkPipelineOptions;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.junit.Assert;
+import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
+import org.apache.beam.sdk.transforms.windowing.Trigger;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 /**
- * Simple test on the Spark runner pipeline options.
+ * Tests for {@link ReshuffleTrigger}.
  */
-public class SparkPipelineOptionsTest {
-  @Test
-  public void testDefaultCreateMethod() {
-    SparkPipelineOptions actualOptions = PipelineOptionsFactory.as(SparkPipelineOptions.class);
-    Assert.assertEquals("local[1]", actualOptions.getSparkMaster());
+@RunWith(JUnit4.class)
+public class ReshuffleTriggerTest {
+
+  /** Public so that other tests can instantiate {@link ReshuffleTrigger}. */
+  public static <W extends BoundedWindow> ReshuffleTrigger<W> forTest() {
+    return new ReshuffleTrigger<>();
   }
 
   @Test
-  public void testSettingCustomOptions() {
-    SparkPipelineOptions actualOptions = PipelineOptionsFactory.as(SparkPipelineOptions.class);
-    actualOptions.setSparkMaster("spark://207.184.161.138:7077");
-    Assert.assertEquals("spark://207.184.161.138:7077", actualOptions.getSparkMaster());
+  public void testToString() {
+    Trigger trigger = new ReshuffleTrigger<>();
+    assertEquals("ReshuffleTrigger()", trigger.toString());
   }
 }
