@@ -364,6 +364,15 @@ class DebugOptions(PipelineOptions):
     parser.add_argument('--dataflow_job_file',
                         default=None,
                         help='Debug file to write the workflow specification.')
+    parser.add_argument(
+        '--experiment',
+        dest='experiments',
+        action='append',
+        default=None,
+        help=
+        ('Runners may provide a number of experimental features that can be '
+         'enabled with this flag. Please sync with the owners of the runner '
+         'before enabling any experiments.'))
 
 
 class ProfilingOptions(PipelineOptions):
@@ -440,7 +449,7 @@ class SetupOptions(PipelineOptions):
          'tarball from here. If the string "default", '
          'a standard SDK location is used. If empty, no SDK is copied.'))
     parser.add_argument(
-        '--extra_package',
+        '--extra_package', '--extra_packages',
         dest='extra_packages',
         action='append',
         default=None,
